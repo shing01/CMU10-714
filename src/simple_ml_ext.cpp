@@ -33,7 +33,45 @@ void softmax_regression_epoch_cpp(const float *X, const unsigned char *y,
      */
 
     /// BEGIN YOUR CODE
-
+    for(size_t i = 0; i < m; i += batch) {
+        size_t current_batch_size = std::min(batch, m - i);
+        // 计算 Z = X_batch * theta
+        std::vector<float> Z(current_batch_size * k, 0.0f);
+        for(size_t j = 0; j < current_batch_size; j++) { // 遍历 batch 每一行
+            for(size_t col = 0; col < k; col++) { // 遍历 theta 每一列，即 k 个类别
+                for(size_t dim = 0; dim < n; dim++) { // 遍历 theta 每一行，即 n 个输入维度
+                    Z[j * k + col] += X[(i + j) * n + dim] * theta[dim * k + col];
+                }
+            }
+        }
+        // softmax
+        std::vector<float> P(current_batch_size * k, 0.0f);
+        for(size_t j = 0; j < current_batch_size; j++) {
+            float sum_exp = 0.0f;
+            for(size_t col = 0; col < k; col++) {
+                P[j * k + col] = std::exp(Z[j * k + col]);
+                sum_exp += P[j * k + col];
+            }
+            for(size_t col = 0; col < k; col++) {
+                P[j * k + col] /= sum_exp;
+            }
+        }
+        // SGD P-Y_One_Hot
+        std::vector<float> Z_grad(current_batch_size * k, 0.0f);
+        Z_grad = P;
+        for(size_t j = 0; j < current_batch_size; j++) {
+            unsigned char label = y[i + j];
+            Z_grad[j * k + label] -= 1.0f;
+        }
+        float step = lr / (float)current_batch_size;
+        for(size_t j = 0; j < current_batch_size; j++) {
+            for(size_t col = 0; col < k; col++) {
+                for(size_t dim = 0; dim < n; dim++) {
+                    theta[dim * k + col] -= step * X[(i + j) * n + dim] * Z_grad[j * k + col];
+                }
+            }
+        }
+    }
     /// END YOUR CODE
 }
 

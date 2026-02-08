@@ -20,7 +20,7 @@ def add(x, y):
         Sum of x + y
     """
     ### BEGIN YOUR CODE
-    pass
+    return x + y
     ### END YOUR CODE
 
 
@@ -48,7 +48,27 @@ def parse_mnist(image_filename, label_filename):
                 for MNIST will contain the values 0-9.
     """
     ### BEGIN YOUR CODE
-    pass
+    # 由于硬件不同，在计算 np.linalg.norm 时可能会有微小的数值差异，因此我们将 rtol 从 1e-6 放宽到 1e-5
+    with gzip.open(image_filename, 'rb') as f:
+        # 直接读取整个文件，利用 np.frombuffer 的 offset 参数跳过文件头
+        data = f.read()
+        # 前 16 个字节是 Header（4字节魔数 + 4字节样本数 + 4字节行数 + 4字节列数）
+        # struct.unpack_from 可以从指定位置解析
+        magic, num_images, rows, cols = struct.unpack_from('>IIII', data, 0)
+        assert magic == 2051, "Invalid magic number in image file: {}".format(magic)
+        X = np.frombuffer(data, dtype=np.uint8, offset=16)
+        # Reshape: (N, H * W) -> (60000, 784)
+        X = X.reshape(num_images, rows * cols)
+        X = X.astype(np.float32) / np.float32(255.0)
+
+    with gzip.open(label_filename, 'rb') as f:
+        data = f.read()
+        # 前 8 个字节是 Header（4字节魔数 + 4字节样本数）
+        magic, num_labels = struct.unpack_from('>II', data, 0)
+        assert magic == 2049, "Invalid magic number in label file: {}".format(magic)
+        y = np.frombuffer(data, dtype=np.uint8, offset=8)
+
+    return X, y
     ### END YOUR CODE
 
 
@@ -68,7 +88,19 @@ def softmax_loss(Z, y):
         Average softmax loss over the sample.
     """
     ### BEGIN YOUR CODE
-    pass
+    # 计算所有元素的指数 exp(Z)
+    exp_Z = np.exp(Z)
+    # 每一行的指数之和
+    sum_exp_Z = np.sum(exp_Z, axis=1)
+    # 取对数
+    log_sum_exp_Z = np.log(sum_exp_Z)
+    # 取出真实标签对应的 Logit 值 Z[i, y[i]]
+    batch_size = Z.shape[0]
+    Z_y = Z[np.arange(batch_size), y]
+    # 计算 Loss: LogSumExp - TrueClassLogit
+    loss = log_sum_exp_Z - Z_y
+
+    return np.mean(loss)
     ### END YOUR CODE
 
 
@@ -91,7 +123,27 @@ def softmax_regression_epoch(X, y, theta, lr = 0.1, batch=100):
         None
     """
     ### BEGIN YOUR CODE
-    pass
+    num_examples = X.shape[0]
+    for i in range(0, num_examples, batch):
+        # 确定当前 Batch 的切片范围
+        end = min(i + batch, num_examples)
+        X_batch = X[i:end]
+        y_batch = y[i:end]
+        current_batch_size = end - i
+        # 前向传播
+        Z = np.dot(X_batch, theta)
+        # Softmax
+        exp_Z = np.exp(Z)
+        sum_exp_Z = np.sum(exp_Z, axis=1, keepdims=True) # keepdims=True 保持二维，方便后续广播除法
+        P = exp_Z / sum_exp_Z
+        # 计算梯度
+        Z_grad = P
+        Z_grad[np.arange(current_batch_size), y_batch] -= 1
+        grad = np.dot(X_batch.T, Z_grad) / current_batch_size
+        # 更新参数
+        theta -= lr * grad
+
+
     ### END YOUR CODE
 
 
@@ -118,7 +170,38 @@ def nn_epoch(X, y, W1, W2, lr = 0.1, batch=100):
         None
     """
     ### BEGIN YOUR CODE
-    pass
+    num_examples = X.shape[0]
+    for i in range(0, num_examples, batch):
+        end = min(i + batch, num_examples)
+        X_batch = X[i:end]
+        y_batch = y[i:end]
+        current_batch_size = end - i
+        # 前向传播
+        # Layer 1: Linear + ReLU
+        Z1 = np.dot(X_batch, W1)
+        A1 = np.maximum(Z1, 0)
+        # Layer 2: Linear (Logits)
+        Z2 = np.dot(A1, W2)
+        # Softmax
+        exp_Z2 = np.exp(Z2)
+        sum_exp_Z2 = np.sum(exp_Z2, axis=1, keepdims=True)
+        P = exp_Z2 / sum_exp_Z2
+
+        # 反向传播
+        # 输出层梯度 (G2 = P - y_onehot)
+        G2 = P
+        G2[np.arange(current_batch_size), y_batch] -= 1
+        # 第二层权重梯度 (Grad W2)
+        grad_W2 = np.dot(A1.T, G2) / current_batch_size
+        # 传递到隐藏层 (G1)
+        G1 = np.dot(G2, W2.T)
+        # ReLU求导
+        G1[Z1 <= 0] = 0
+        # 第一层权重梯度 (Grad W1)
+        grad_W1 = np.dot(X_batch.T, G1) / current_batch_size
+        # 更新参数
+        W1 -= lr * grad_W1
+        W2 -= lr * grad_W2
     ### END YOUR CODE
 
 
