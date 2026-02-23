@@ -33,7 +33,26 @@ def parse_mnist(image_filename, label_filename):
                 for MNIST will contain the values 0-9.
     """
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    with gzip.open(image_filename, 'rb') as f:
+        # 直接读取整个文件，利用 np.frombuffer 的 offset 参数跳过文件头
+        data = f.read()
+        # 前 16 个字节是 Header（4字节魔数 + 4字节样本数 + 4字节行数 + 4字节列数）
+        # struct.unpack_from 可以从指定位置解析
+        magic, num_images, rows, cols = struct.unpack_from('>IIII', data, 0)
+        assert magic == 2051, "Invalid magic number in image file: {}".format(magic)
+        X = np.frombuffer(data, dtype=np.uint8, offset=16)
+        # Reshape: (N, H * W) -> (60000, 784)
+        X = X.reshape(num_images, rows * cols)
+        X = X.astype(np.float32) / np.float32(255.0)
+
+    with gzip.open(label_filename, 'rb') as f:
+        data = f.read()
+        # 前 8 个字节是 Header（4字节魔数 + 4字节样本数）
+        magic, num_labels = struct.unpack_from('>II', data, 0)
+        assert magic == 2049, "Invalid magic number in label file: {}".format(magic)
+        y = np.frombuffer(data, dtype=np.uint8, offset=8)
+
+    return X, y
     ### END YOUR SOLUTION
 
 
@@ -54,7 +73,10 @@ def softmax_loss(Z, y_one_hot):
         Average softmax loss over the sample. (ndl.Tensor[np.float32])
     """
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    batch_size = Z.shape[0]
+    log_sum_exp = ndl.log(ndl.summation(ndl.exp(Z), axes=(1,)))
+    Z_y = ndl.summation(Z * y_one_hot, axes=(1,))
+    return ndl.summation(log_sum_exp - Z_y) / batch_size
     ### END YOUR SOLUTION
 
 
@@ -83,7 +105,26 @@ def nn_epoch(X, y, W1, W2, lr=0.1, batch=100):
     """
 
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    n = X.shape[0]
+    num_classes = W2.shape[1]
+
+    for i in range(0, n, batch):
+        end = min(i + batch, n)
+        X_batch = ndl.Tensor(X[i:end])
+        y_batch = y[i:end]
+        batch_size = end - i
+        y_one_hot = np.zeros((batch_size, num_classes), dtype=np.float32)
+        y_one_hot[np.arange(batch_size), y_batch] = 1
+        y_tensor = ndl.Tensor(y_one_hot)
+
+        logits = ndl.relu(X_batch @ W1) @ W2
+        loss = softmax_loss(logits, y_tensor)
+        loss.backward()
+
+        W1 = ndl.Tensor(W1.numpy() - lr * W1.grad.numpy())
+        W2 = ndl.Tensor(W2.numpy() - lr * W2.grad.numpy())
+
+    return W1, W2
     ### END YOUR SOLUTION
 
 
