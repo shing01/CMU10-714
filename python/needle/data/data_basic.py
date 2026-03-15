@@ -60,12 +60,22 @@ class DataLoader:
 
     def __iter__(self):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        indices = np.arange(len(self.dataset))
+        if self.shuffle:
+            np.random.shuffle(indices)
+        self.batches = [indices[i : i + self.batch_size] for i in range(0, len(indices), self.batch_size)]
+        self.batch_idx = 0
         ### END YOUR SOLUTION
         return self
 
     def __next__(self):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        if self.batch_idx >= len(self.batches):
+            raise StopIteration
+        current_batch_indices = self.batches[self.batch_idx]
+        self.batch_idx += 1
+        batch_data = self.dataset[current_batch_indices]
+
+        return tuple(Tensor(data) for data in batch_data)
         ### END YOUR SOLUTION
 
