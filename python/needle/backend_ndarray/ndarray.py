@@ -262,7 +262,20 @@ class NDArray:
         """
 
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        new_strides = []
+        current_stride = 1
+        for s in reversed(new_shape):
+            new_strides.append(current_stride)
+            current_stride *= s
+        new_strides.reverse()
+
+        return NDArray.make(
+            shape=new_shape,
+            strides=tuple(new_strides),
+            device=self.device,
+            handle=self._handle,
+            offset=self._offset,
+        )
         ### END YOUR SOLUTION
 
     def permute(self, new_axes: tuple[int, ...]) -> "NDArray":
@@ -287,7 +300,19 @@ class NDArray:
         """
 
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        new_shape = []
+        new_strides = []
+        for axis in new_axes:
+            new_shape.append(self.shape[axis])
+            new_strides.append(self.strides[axis])
+
+        return NDArray.make(
+            shape=tuple(new_shape),
+            strides=tuple(new_strides),
+            device=self.device,
+            handle=self._handle,
+            offset=self._offset,
+        )
         ### END YOUR SOLUTION
 
     def broadcast_to(self, new_shape: tuple[int, ...]) -> "NDArray":
@@ -311,7 +336,22 @@ class NDArray:
         """
 
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        new_strides = []
+        for old_s, new_s, old_stride in zip(self.shape, new_shape, self.strides):
+            if old_s == new_s:
+                new_strides.append(old_stride)
+            elif old_s == 1:
+                new_strides.append(0)
+            else:
+                raise ValueError("Shape mismatch for broadcast")
+                
+        return NDArray.make(
+            shape=new_shape,
+            strides=tuple(new_strides),
+            device=self.device,
+            handle=self._handle,
+            offset=self._offset,
+        )
         ### END YOUR SOLUTION]
 
     ### Get and set elements
@@ -378,7 +418,22 @@ class NDArray:
         assert len(slices) == self.ndim, "Need indexes equal to number of dimensions"
 
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        new_shape = []
+        new_strides = []
+        new_offset = self._offset
+
+        for i, s in enumerate(slices):
+            new_shape.append((s.stop - s.start + s.step - 1) // s.step)
+            new_strides.append(self.strides[i] * s.step)
+            new_offset += s.start * self.strides[i]
+
+        return NDArray.make(
+            shape=tuple(new_shape),
+            strides=tuple(new_strides),
+            device=self.device,
+            handle=self._handle,
+            offset=new_offset,
+        )
         ### END YOUR SOLUTION
 
     def __setitem__(self, idxs: int | slice | tuple[int | slice, ...], other: Union["NDArray", float]) -> None:
